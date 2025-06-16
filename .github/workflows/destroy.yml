@@ -1,103 +1,51 @@
-name: destroy
+name: destroy infra
 
 on:
   workflow_dispatch:
     inputs:
       action:
-        description: 'Action to perform (apply or destroy)'
+        description: 'Terraform Action'
         required: true
+        default: 'destroy'
+        type: choice
+        options:
+          - destroy
 
 permissions:
-  contents: write
-  pull-requests: write
   id-token: write
+  contents: read
 
-
-env:
-  TF_VERSION: "1.12.0"
-  AWS_REGION: "us-east-1"
-  AWS_ROLE_ARN: "arn:aws:iam::784733659029:role/lambda-access-role"  
 
 jobs:
-  lint-and-security:
-    name: Lint and Security Checks
-    runs-on: self-hosted
+  terraform:
+    name: Terraform ${{ github.event.inputs.action }}
+    runs-on: ubuntu-latest
+    
+    env:
+      AWS_REGION: us-east-1
+
     defaults:
       run:
-        working-directory: ./main-infra
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.ref || github.ref }}
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Install TFLint
-        run: |
-          wget https://github.com/terraform-linters/tflint/releases/download/v0.50.2/tflint_linux_amd64.zip
-          unzip tflint_linux_amd64.zip
-          sudo mv tflint /usr/local/bin/
-          tflint --version
-
-      - name: Run TFLint
-        run: tflint --init && tflint -f compact
-
-      - name: Run Checkov (soft fail)
-        uses: bridgecrewio/checkov-action@v12.2458.0
-        with:
-          directory: .
-          soft_fail: true
-
-  terraform-plan_apply:
-    if: github.event_name == 'pull_request'
-    runs-on: self-hosted
-    needs: lint-and-security
-    name: Terraform Plan
-    defaults:
-      run:
-        working-directory: ./main-infra
+        shell: bash
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.ref || github.ref }}
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ env.AWS_ROLE_ARN }}
-          aws-region: ${{ env.AWS_REGION }}
 
       - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@v2
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          terraform_version: ${{ env.TF_VERSION }}
+          role-to-assume: arn:aws:iam::784733659029:role/oidc-role
+          aws-region: us-east-1
+
 
       - name: Initialize Terraform
-        run: terraform init 
+        run: terraform init
 
-      - name: Terraform test
-        run: |
-         terraform test
-        continue-on-error: true   
-
-      - name: Terraform fmt
-        run: terraform fmt -recursive
-
-      - name: Validate Terraform
-        run: terraform validate
-
-      - name: Generate Terraform Plan
-        run: terraform plan
-
-      - name: Terraform Apply or Destroy
-        run: |
-              if [ "${{ github.event.inputs.action }}" == "apply" ]; then
-                terraform apply -auto-approve
-              elif [ "${{ github.event.inputs.action }}" == "destroy" ]; then
-                terraform destroy -auto-approve
-              fi
+      - name: Terraform Destroy
+        if: github.event.inputs.action == 'destroy'
+        run: terraform destroy -auto-approve
+ 
