@@ -1,3 +1,10 @@
+module "vpc" {
+  source = "./modules/vpc"
+
+  vpc_cidr_block = var.vpc_cidr_block
+  public_subnet_cidrs = var.public_subnet_cidrs
+  availability_zones = var.availability_zones
+}
 
 module "ec2_instance" {
   source        = "./modules/ec2_instance"
