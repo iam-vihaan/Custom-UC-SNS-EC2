@@ -6,8 +6,8 @@ module "vpc" {
   availability_zones = var.availability_zones
 }
 
-module "ec2_instance" {
-  source        = "./modules/ec2_instance"
+module "ec2" {
+  source        = "./modules/ec2"
   ami           = var.ami
   instance_type = var.instance_type
   name          = var.ec2_name
